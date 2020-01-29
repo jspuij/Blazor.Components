@@ -3,6 +3,7 @@ using Microsoft.Build.Utilities;
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Text;
 
 namespace Blazor.Components.AspnetCorePatcher
@@ -20,35 +21,60 @@ namespace Blazor.Components.AspnetCorePatcher
 
         public override bool Execute()
         {
-            foreach (var reference in References)
-            {
-                this.Log.LogWarning($"{reference.ItemSpec}");
-            }
+            bool isWebassembly = InputFiles.Contains("_bin");
 
             string aspnetCoreComponentsPath = null;
             string outputPath = null;
+
             List<string> otherFiles = new List<string>();
 
-            foreach (var file in Directory.GetFiles(InputFiles, "*.dll"))
+            if (isWebassembly)
             {
-                if (file.EndsWith("Microsoft.AspNetCore.Components.dll", StringComparison.InvariantCultureIgnoreCase))
+                foreach (var file in Directory.GetFiles(InputFiles, "*.dll"))
                 {
-                    aspnetCoreComponentsPath = file;
-                    outputPath = $"{file}.patched";
-                } else
+                    if (file.EndsWith("Microsoft.AspNetCore.Components.dll", StringComparison.InvariantCultureIgnoreCase))
+                    {
+                        aspnetCoreComponentsPath = file;
+                        outputPath = $"{file}.patched";
+                    } else
+                    {
+                        otherFiles.Add(file);
+                    }
+                }
+            } else
+            {
+                foreach (var file in References.Select(x => x.ItemSpec))
                 {
-                    otherFiles.Add(file);
+                    if (file.EndsWith("Microsoft.AspNetCore.Components.dll", StringComparison.InvariantCultureIgnoreCase))
+                    {
+                        var dotnetpath = file.Substring(0, file.LastIndexOf("dotnet") + 6);
+
+                        var latest = Directory.GetDirectories(Path.Combine(dotnetpath, "shared", "Microsoft.AspNetCore.App")).Last();
+
+                        aspnetCoreComponentsPath = Path.Combine(latest, Path.GetFileName(file));
+                        Log.LogWarning(aspnetCoreComponentsPath);
+                        outputPath = Path.Combine(InputFiles, $"{Path.GetFileName(file)}.patched");
+                    }
+                    else
+                    {
+                        if (file.EndsWith("Microsoft.Extensions.DependencyInjection.Abstractions.dll", StringComparison.InvariantCultureIgnoreCase))
+                        {
+                            Log.LogWarning(file);
+                        }
+                        otherFiles.Add(file);
+                    }
                 }
             }
 
             try
             {
-                using (var assemblyPatcher = new AssemblyPatcher(aspnetCoreComponentsPath, outputPath, otherFiles.ToArray(), aspnetCoreComponentsPath.Contains("_bin")))
+                using (var assemblyPatcher = new AssemblyPatcher(aspnetCoreComponentsPath, outputPath, otherFiles.ToArray(), true))
                 {
                     assemblyPatcher.Run();
                 }
-                File.Delete(aspnetCoreComponentsPath);
-                File.Move(outputPath, aspnetCoreComponentsPath);
+                var targetFileName = outputPath.Replace(".patched", "");
+                File.Delete(targetFileName);
+                File.Move(outputPath, targetFileName);
                 return true;
             }
             catch (Exception ex)
