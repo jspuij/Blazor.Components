@@ -1,0 +1,21 @@
+﻿<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>netstandard2.1</TargetFramework>
+    <RazorLangVersion>3.0</RazorLangVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Blazor" Version="3.1.0-preview4.19579.2" />
+    <PackageReference Include="Microsoft.AspNetCore.Blazor.Build" Version="3.1.0-preview4.19579.2" PrivateAssets="all" />
+    <PackageReference Include="Microsoft.AspNetCore.Blazor.HttpClient" Version="3.1.0-preview4.19579.2" />
+    <PackageReference Include="Microsoft.AspNetCore.Blazor.DevServer" Version="3.1.0-preview4.19579.2" PrivateAssets="all" />
+  </ItemGroup>
+
+  <UsingTask TaskName="PatchAspnetCoreComponentsTask" AssemblyFile="$(SolutionDir)Blazor.Components.AspnetCorePatcher\bin\$(Configuration)\netstandard2.0\Blazor.Components.AspnetCorePatcher.dll" />
+
+  <Target Name="InvokeCustomTask" AfterTargets="AfterBuild" >
+    <PatchAspnetCoreComponentsTask InputFiles="$(TargetDir)$(BlazorRuntimeBinOutputPath)" References="@(ReferencePath)" />
+  </Target>
+
+</Project>

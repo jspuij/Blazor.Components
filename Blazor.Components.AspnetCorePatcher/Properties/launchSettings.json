@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "Blazor.Components.AspnetCorePatcher": {
+      "commandName": "Project",
+      "commandLineArgs": "Microsoft.AspNetCore.Components.dll"
+    }
+  }
+}

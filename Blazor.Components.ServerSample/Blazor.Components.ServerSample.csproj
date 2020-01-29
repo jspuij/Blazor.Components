@@ -1,0 +1,18 @@
+﻿<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>netcoreapp3.1</TargetFramework>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Components" Version="3.1.0" />
+  </ItemGroup>
+
+  <UsingTask TaskName="PatchAspnetCoreComponentsTask" AssemblyFile="$(SolutionDir)Blazor.Components.AspnetCorePatcher\bin\$(Configuration)\netstandard2.0\Blazor.Components.AspnetCorePatcher.dll" />
+
+  <Target Name="InvokeCustomTask" AfterTargets="AfterBuild">
+        
+    <PatchAspnetCoreComponentsTask InputFiles="$(TargetDir)" References="@(ReferencePath)" />
+  </Target>
+
+</Project>
