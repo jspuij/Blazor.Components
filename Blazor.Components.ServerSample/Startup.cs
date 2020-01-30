@@ -10,6 +10,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Blazor.Components.ServerSample.Data;
+using Blazor.Components.ServerSample.Pages;
 
 namespace Blazor.Components.ServerSample
 {
@@ -28,6 +29,7 @@ namespace Blazor.Components.ServerSample
         {
             services.AddRazorPages();
             services.AddServerSideBlazor();
+            services.AddTransient<FetchData>();
             services.AddSingleton<WeatherForecastService>();
         }
 

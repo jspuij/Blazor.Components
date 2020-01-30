@@ -47,11 +47,17 @@ namespace Blazor.Components.AspnetCorePatcher
                 {
                     if (file.EndsWith("Microsoft.AspNetCore.Components.dll", StringComparison.InvariantCultureIgnoreCase))
                     {
-                        var dotnetpath = file.Substring(0, file.LastIndexOf("dotnet") + 6);
+                        if (file.Contains("dotnet"))
+                        {
+                            var dotnetpath = file.Substring(0, file.LastIndexOf("dotnet") + 6);
 
-                        var latest = Directory.GetDirectories(Path.Combine(dotnetpath, "shared", "Microsoft.AspNetCore.App")).Last();
+                            var latest = Directory.GetDirectories(Path.Combine(dotnetpath, "shared", "Microsoft.AspNetCore.App")).Last();
+                            aspnetCoreComponentsPath = Path.Combine(latest, Path.GetFileName(file));
+                        } else
+                        {
+                            aspnetCoreComponentsPath = file;
+                        }
 
-                        aspnetCoreComponentsPath = Path.Combine(latest, Path.GetFileName(file));
                         Log.LogWarning(aspnetCoreComponentsPath);
                         outputPath = Path.Combine(InputFiles, $"{Path.GetFileName(file)}.patched");
                     }

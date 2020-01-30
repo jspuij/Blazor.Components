@@ -1,8 +1,11 @@
-﻿using Mono.Cecil;
-using Mono.Cecil.Cil;
+﻿using dnlib.DotNet;
+using dnlib.DotNet.Emit;
+using dnlib.DotNet.Writer;
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
+using System.Reflection;
 using System.Text;
 
 namespace Blazor.Components.AspnetCorePatcher
@@ -13,7 +16,7 @@ namespace Blazor.Components.AspnetCorePatcher
         private readonly string outputFileName;
         private readonly string[] references;
         private readonly bool useCustomResolver;
-        private ModuleDefinition module = null;
+        private ModuleDefMD module;
 
         public AssemblyPatcher(string inputFileName, string outputFileName, string[] references, bool useCustomResolver)
         {
@@ -34,22 +37,26 @@ namespace Blazor.Components.AspnetCorePatcher
 
         public void Run()
         {
-            IAssemblyResolver resolver = useCustomResolver ? (IAssemblyResolver) new CustomAssemblyResolver(references) : new DefaultAssemblyResolver();
-            module = ModuleDefinition.ReadModule(inputFileName, new ReaderParameters()
-            {
-                AssemblyResolver = resolver,
-                ReadWrite = false,
-            });
+            // Create a default assembly resolver and type resolver and pass it to Load().
+            // If it's a .NET Core assembly, you'll need to disable GAC loading and add
+            // .NET Core reference assembly search paths.
+            ModuleContext modCtx = ModuleDef.CreateModuleContext();
+
+            IAssemblyResolver resolver = new CustomAssemblyResolver(references);
+            modCtx.AssemblyResolver = resolver;
+
+            module = ModuleDefMD.Load(inputFileName, modCtx);
+            Importer importer = new Importer(module);
 
             var instantiateComponentMethod = (from t in module.GetTypes()
                                               where t.Name == "ComponentFactory"
                                               from m in t.Methods
                                               where m.Name == "InstantiateComponent"
                                               select m).Single();
-            var assembly = module.AssemblyResolver.Resolve(module.AssemblyReferences.FirstOrDefault(x => x.Name == "Microsoft.Extensions.DependencyInjection.Abstractions"));
 
+            var assembly = resolver.Resolve(module.GetAssemblyRefs().FirstOrDefault(x => x.Name == "Microsoft.Extensions.DependencyInjection.Abstractions"), module);
 
-            var getServiceMethod = (from t in assembly.MainModule.GetTypes()
+            var getServiceMethod = (from t in assembly.ManifestModule.GetTypes()
                                     where t.Name == "ActivatorUtilities"
                                     from m in t.Methods
                                     where m.Name == "GetServiceOrCreateInstance"
@@ -58,12 +65,36 @@ namespace Blazor.Components.AspnetCorePatcher
 
             var firstCall = instantiateComponentMethod.Body.Instructions.First(x => x.OpCode == OpCodes.Call);
 
-            var processor = instantiateComponentMethod.Body.GetILProcessor();
+            instantiateComponentMethod.Body.Instructions.Insert(0, OpCodes.Ldarg_1.ToInstruction());
+            firstCall.Operand = importer.Import(getServiceMethod);
 
-            processor.InsertBefore(instantiateComponentMethod.Body.Instructions.First(), processor.Create(OpCodes.Ldarg_1));
-            firstCall.Operand = module.ImportReference(getServiceMethod);
+           
 
-            module.Write(outputFileName);
+            if (module.IsILOnly)
+            {
+                // Create writer options
+                var opts = new ModuleWriterOptions(module);
+
+                // Open or create the strong name key
+                var signatureKey = new StrongNameKey(Path.Combine(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location), "Key.snk"));
+
+                // This method will initialize the required properties
+                opts.InitializeStrongNameSigning(module, signatureKey);
+
+                module.Write(outputFileName, opts);
+            } else
+            {
+                // Create writer options
+                var opts = new NativeModuleWriterOptions(module, false);
+
+                // Open or create the strong name key
+                var signatureKey = new StrongNameKey(Path.Combine(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location), "Key.snk"));
+
+                // This method will initialize the required properties
+                opts.InitializeStrongNameSigning(module, signatureKey);
+
+                module.NativeWrite(outputFileName, opts);
+            }
         }
     }
 }

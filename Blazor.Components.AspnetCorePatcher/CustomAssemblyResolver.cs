@@ -1,50 +1,26 @@
-﻿using Mono.Cecil;
+﻿using dnlib.DotNet;
 using System;
+using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 
 namespace Blazor.Components.AspnetCorePatcher
 {
 	/// <summary>
 	/// Resolves assemblies from a list of files provided.
 	/// </summary>
-	public class CustomAssemblyResolver : IAssemblyResolver
+	public class CustomAssemblyResolver : AssemblyResolver
 	{
-		private readonly string[] references;
+		private readonly string[] paths;
 
 		public CustomAssemblyResolver(string[] references)
 		{
-			this.references = references;
+			this.paths = references.Select(x => Path.GetDirectoryName(x)).Distinct().ToArray();
 		}
 
-		public void Dispose()
+		protected override IEnumerable<string> GetModuleSearchPaths(ModuleDef module)
 		{
-		}
-
-		public AssemblyDefinition Resolve(AssemblyNameReference name)
-		{
-			return Resolve(name, new ReaderParameters());
-		}
-
-		public AssemblyDefinition Resolve(AssemblyNameReference name, ReaderParameters parameters)
-		{
-			parameters.AssemblyResolver = this;
-
-			foreach (var reference in references)
-			{
-				var fileInfo = new FileInfo(reference);
-
-				if (!fileInfo.Exists)
-				{
-					throw new InvalidOperationException($"File {reference} does not exist on disk.");
-				}
-
-				if (Path.GetFileNameWithoutExtension(fileInfo.FullName) == name.Name)
-				{
-					return ModuleDefinition.ReadModule(reference, parameters).Assembly;
-				}
-			}
-
-			throw new InvalidOperationException($"Assenbly {name} not in collection of referenced assemblies.");
+			return paths.Union(base.GetModuleSearchPaths(module));
 		}
 	}
 }
